@@ -977,12 +977,12 @@ char_link(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t offset
 	
 	/* footnote link */
 	if (rndr->ext_flags & MKDEXT_FOOTNOTES && data[1] == '^') {
-		if (txt_e < 3)
-			goto cleanup;
-	
 		struct buf id = { 0, 0, 0, 0 };
 		struct footnote_ref *fr;
 		
+		if (txt_e < 3)
+			goto cleanup;
+
 		id.data = data + 2;
 		id.size = txt_e - 2;
 		
@@ -2447,13 +2447,6 @@ is_footnote(const uint8_t *data, size_t beg, size_t end, size_t *last, struct fo
 	i++;
 	if (i >= end || data[i] != ':') return 0; 
 	i++;
-	while (i < end && data[i] == ' ') i++;
-	if (i < end && (data[i] == '\n' || data[i] == '\r')) {
-		i++;
-		if (i < end && data[i] == '\n' && data[i - 1] == '\r') i++;
-	}
-	while (i < end && data[i] == ' ') i++;
-	if (i >= end || data[i] == '\n' || data[i] == '\r') return 0;
 	
 	/* getting content buffer */
 	contents = bufnew(64);
@@ -2483,10 +2476,11 @@ is_footnote(const uint8_t *data, size_t beg, size_t end, size_t *last, struct fo
 		/* joining only indented stuff after empty lines;
 		 * note that now we only require 1 space of indentation
 		 * to continue, just like lists */
-		if (in_empty && ind == 0) {
-			break;
+		if (ind == 0) {
+			if (start == id_end + 2 && data[start] == '\t') {}
+			else break;
 		}
-		else if (in_empty) {
+		if (in_empty) {
 			bufputc(contents, '\n');
 		}
 	
@@ -2735,6 +2729,8 @@ sd_markdown_render(struct buf *ob, const uint8_t *document, size_t doc_size, str
 	struct buf *text;
 	size_t beg, end;
 
+	int footnotes_enabled = md->ext_flags & MKDEXT_FOOTNOTES;
+
 	text = bufnew(64);
 	if (!text)
 		return;
@@ -2744,8 +2740,6 @@ sd_markdown_render(struct buf *ob, const uint8_t *document, size_t doc_size, str
 
 	/* reset the references table */
 	memset(&md->refs, 0x0, REF_TABLE_SIZE * sizeof(void *));
-	
-	int footnotes_enabled = md->ext_flags & MKDEXT_FOOTNOTES;
 	
 	/* reset the footnotes lists */
 	if (footnotes_enabled) {
